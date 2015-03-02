@@ -1,6 +1,8 @@
 #include "reg_main.h"
 
 symbol_record *symbol_table;
+int symbol_table_size;
+int yycolumn;
 
 symbol_record *add_symbol(char const *name,
                           char const *value,
@@ -13,7 +15,7 @@ symbol_record *add_symbol(char const *name,
     fprintf(stderr, "Terrible things have happened. Aborting.\n");
     exit(1);
   }
-
+  
   // allocate space for name and value
   new_record->name = (char *) malloc(strlen(name) + 1);
   new_record->value = (char *) malloc(strlen(name) + 1);
@@ -27,22 +29,36 @@ symbol_record *add_symbol(char const *name,
   // point next to root of table, move root to new node
   new_record->next = (struct symbol_record *) symbol_table;
   symbol_table = new_record;
+
+  //increment table size
+  symbol_table_size++;
+  
+  return new_record;
 }
 
 void init_table(symbol_record *root)
 {
   root = NULL;
+
+  // we'll keep track of the table size in a global variable
+  // which is less than ideal but this parser is tiny so it's ok
+  symbol_table_size = 0;
+
+  symbol_table = NULL;
 }
 
 void free_table(symbol_record *root)
 {
   symbol_record *current_record = root;
-
+  symbol_record *temp;
   while (current_record != NULL) {
-    symbol_record *temp = current_record;
+    temp = current_record;
     current_record = current_record->next;
     free(temp);
   }
+
+  root = NULL;
+
 }
 
 void print_symbol_table(symbol_record *root)
@@ -90,9 +106,11 @@ int main (int argc, char **argv)
   return 0;
 }
 
-yyerror(char *s)
+int yyerror(char *s)
 {
   fprintf(stderr, "error: %s\n", s);
+
+  return 1;
 }
 
 static PyObject* say_hello(PyObject* self, PyObject* args)
@@ -104,7 +122,7 @@ static PyObject* say_hello(PyObject* self, PyObject* args)
   
   printf("Hello %s!\n", name);
   
-  Py_RETURN_NONE;
+  return Py_BuildValue("ss", "hello", name);
 }
 
 static PyObject* parse(PyObject *self, PyObject *args)
@@ -115,13 +133,57 @@ static PyObject* parse(PyObject *self, PyObject *args)
     return NULL;
   }
 
-  printf("getting ready to parse\n");
-  printf("input string: %s", scan_string);
+  init_table(symbol_table);
   
   yy_scan_string(scan_string);
+  // remember to reset yycolumn for each new scan
+  yycolumn = 0;
   yyparse();
 
-  Py_RETURN_NONE;
+  // now we must construct the list of return values and send it
+  // back to the python caller
+
+  // printf("printing the symbol table of %d objects\n", symbol_table_size);
+  // print_symbol_table(symbol_table);
+  
+  symbol_record *current_record;
+
+  // printf("converting symbol table to Python objects\n");
+  
+  PyObject *retvals = PyList_New(symbol_table_size);
+
+  // printf("allocated Python list of size %d\n", PyList_GET_SIZE(retvals));
+
+  PyObject *new_result;
+  
+  int i = 0;
+  for (current_record = symbol_table;
+       current_record != NULL;
+       current_record = current_record->next) {
+    // printf("processing %s: %s\n", current_record->name, current_record->value);
+    new_result = Py_BuildValue("{s:s,s:s,s:i,s:i}",
+			       "name",
+			       current_record->name,
+			       "value",
+			       current_record->value,
+			       "start",
+			       current_record->start_loc,
+			       "end",
+			       current_record->end_loc + 1);
+    if (new_result == NULL) {
+      fprintf(stderr, "failed to create object!\n");
+      Py_RETURN_NONE;
+    }
+    else {
+      PyList_SetItem(retvals, i, new_result);
+      i++;
+    }
+  }
+
+  // free the symbol table
+  free_table(symbol_table);
+  
+  return retvals;
 
 }
  
