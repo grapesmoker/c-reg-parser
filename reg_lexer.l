@@ -1,6 +1,6 @@
 /* lexer for the regulation parser */
 
-%option debug
+
 %option bison-bridge bison-locations
 
 %{
@@ -11,7 +11,7 @@
 YYSTYPE yylval;
 // YYLTYPE yylloc;
 
-int yycolumn = 1;
+extern int yycolumn = 0;
 
 #define YY_USER_ACTION \
         yylloc->first_line = yylloc->last_line = yylineno; \
@@ -63,23 +63,7 @@ int yycolumn = 1;
 
 [ \t]*           {  }
        
-\r\n             { return EOL; }
-
-
+\r\n             { yycolumn = 0;
+		   return EOL; }
 
 %%
-
-/*
-int main(void)
-{
-    int token;
-    while ((token = yylex()) != 0)
-        printf("Token: %d (%s)\n", token, yytext);
-    return 0;
-}
-*/
-
-/*
-
-.                { return OTHER; }
-*/

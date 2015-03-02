@@ -3,6 +3,8 @@
 #include <string.h>
 #include "reg_main.h"
 
+  
+  // yylloc->first_line = yylloc->last_line = yylloc->first_column = yylloc->last_column = 0;
   %}
 
 %defines
@@ -39,7 +41,8 @@
 %type<str> the_act public_law statute
 %type<str> punctuation
 
-%printer { printf("SYMBOL: %s\n", $$) } usc_ref 
+// %printer { printf("SYMBOL: %s\n", $$) } usc_ref
+//%destructor { printf("freeing %s", $$); free($$); } <str>
 
 %define parse.error verbose
 
@@ -61,14 +64,14 @@ paragraph:
 | paragraph unit
 ;
 
-unit: word { $$ = $1; printf("WORD: %s\n", $word); } 
+unit: word
 | reference
 | punctuation
 ;
 
 word: WORD { 
-  printf("%d %d %d %d", yylloc.first_column, yylloc.last_column,
-         yylloc.first_line, yylloc.last_line);
+  //printf("%d %d %d %d", yylloc.first_column, yylloc.last_column,
+  //       yylloc.first_line, yylloc.last_line);
   add_symbol("WORD", $$, @$.first_column, @$.last_column);
   free($$);
  }
@@ -85,22 +88,28 @@ punctuation: COMMA
 reference:  OPEN_PAREN LOWERCASE_LETTER CLOSE_PAREN { 
   strcat($$, $2);
   strcat($$, $3);
-  printf("REFERENCE: %s\n", $$);
   add_symbol("REFERENCE", $$, @1.first_column, @3.last_column);
   free($$); free($2); free($3);
  }
 | OPEN_PAREN LOWERCASE_LETTER LOWERCASE_LETTER CLOSE_PAREN {
-  strcat($$, $2); strcat($$, $3); strcat($$, $4);
-  printf("REFERENCE: %s\n", $$);
+  strcat($$, $2);
+  strcat($$, $3);
+  strcat($$, $4);
+  add_symbol("REFERENCE", $$, @1.first_column, @4.last_column);
+  free($$); free($2); free($3); free($4);
  }
 | OPEN_PAREN UPPERCASE_LETTER CLOSE_PAREN {
   strcat($$, $2);
   strcat($$, $3);
-  printf("REFERENCE: %s\n", $$);
+  add_symbol("REFERENCE", $$, @1.first_column, @3.last_column);
+  free($$); free($2); free($3);
  }
 | OPEN_PAREN UPPERCASE_LETTER UPPERCASE_LETTER CLOSE_PAREN {
-  strcat($$, $2); strcat($$, $3); strcat($$, $4);
-  printf("REFERENCE: %s\n", $$);
+  strcat($$, $2);
+  strcat($$, $3);
+  strcat($$, $4);
+  add_symbol("REFERENCE", $$, @1.first_column, @3.last_column);
+  free($$); free($2); free($3); free($4);
  }
 | external_citation
 ;
@@ -115,37 +124,52 @@ external_citation: usc_ref
 
 /* external citation rules */
 
-usc_ref: INTEGERS USC INTEGERS { 
+usc_ref: INTEGERS USC INTEGERS {
+  strcat($$, " ");
   strcat($$, $2);
+  strcat($$, " ");
   strcat($$, $3);
-  // printf("USC_REFERENCE: %s\n", $$);
+  add_symbol("USC_REF", $$, @1.first_column, @3.last_column);
+  free($$); free($2); free($3);
 }
 ;
 
 cfr_exp_v1: INTEGERS CFR_PART INTEGERS {
   strcat($$, $2);
   strcat($$, $3);
-  printf("CFR REFERENCE: %s\n", $$);
+  add_symbol("CFR_REF_V1", $$, @1.first_column, @3.last_column);
+  free($$); free($2); free($3);
  };
 
 cfr_exp_v2: INTEGERS CFR FLOATS {
   strcat($$, $2);
   strcat($$, $3);
-  printf("CFR REFERENCE: %s\n", $$);
+  add_symbol("CFR_REF_V2", $$, @1.first_column, @3.last_column);
+  free($$); free($2); free($3);
  };
 
-the_act: THE_ACT;
+the_act: THE_ACT {
+  add_symbol("THE_ACT", $$, @$.first_column, @$.last_column);
+  free($$);
+ };
 
 public_law: PUBLIC_LAW INTEGERS DASH INTEGERS {
+  strcat($$, " ");
   strcat($$, $2);
   strcat($$, $3);
   strcat($$, $4);
-  printf("PUBLIC_LAW: %s\n", $$);
- }
+  add_symbol("PUBLIC_LAW", $$, @1.first_column, @4.last_column);
+  free($$); free($2); free($3); free($4);
+
+ };
 
 statute: INTEGERS STATUTE INTEGERS {
+  strcat($$, " ");
   strcat($$, $2);
+  strcat($$, " ");
   strcat($$, $3);
+  add_symbol("STATUTE", $$, @1.first_column, @3.last_column);
+  free($$); free($2); free($3);
  };
 
 %%
